@@ -1,23 +1,7 @@
-
-
-
-
-
 --FUNCTIONS TO WRITE
 
 --Core Display Functions
 --MonitorData (constantly call DisplayData)
---DisplayAutomationParameterMenu
-
---Status Functions
---getReactorStatus
---getReactorHeatValue
---getReactorHeatPercentage
-
---Automated Control Parameter Assignment
---setMaxReactorHeatPercentage
---setMaxBatteryPowerPercentage
---setMinBatteryPowerPercentage
 
 --Automated Control Monitoring and Response Test
 --checkForReactorHeatResponse	(Do we need to do something because of the current heat level)
@@ -45,12 +29,7 @@ local gpu = component.gpu
 local red1 = component.proxy(component.get("606"))
 local red2 = component.proxy(component.get("8d6"))
 local battery = component.proxy(component.get("4bf"))	--temporary for MFE
-
---Single Player addresses
---local red1 = component.proxy(component.get("aef"))
---local red2 = component.proxy(component.get("047"))
---local battery = component.proxy(component.get("c4f"))	--temporary for MFE
---local reactor = component.get("xxx")
+local reactor = component.proxy(component.get("433"))
 
 local MaxReactorHeatPercentage = 90
 local MaxBatteryPowerPercentage = 99
@@ -127,8 +106,74 @@ local function StopReactor()
 end
 
 local function getReactorStatus()
-	print("***REACTOR STATUS NOT IMPLEMENTED***")
-	return false
+	return reactor.producesEnergy()
+end
+
+local function getPowerGeneration()
+	return reactor.getReactorEUOutput()
+end
+
+local function getReactorHeatValue()
+	return reactor.getHeat()
+end
+
+local function getReactorHeatPercentage()
+	local capacity = reactor.getMaxHeat()
+	return getReactorHeatValue() / capacity * 100
+end
+
+local function setMaxReactorHeatPercentage()
+	local labelsize=36
+	local valuesize=12
+	local maxtextsize=48
+	padding = ((width - maxtextsize * 2)) / 3
+	repeat
+	gpu.setForeground(0x00FFFF)
+	io.write("Current Maximum Heat Percentage:")
+	gpu.setForeground(0xFFFFFF)
+	io.write(tostring(MaxReactorHeatPercentage))
+	print()
+	gpu.setForeground(0xFFFF00)
+	io.write("Input New Maximum Heat Percentage:")
+	local input = tonumber(io.read())
+	until not (input == nil or input > 100 or input < 0)
+	MaxReactorHeatPercentage = input
+end
+
+local function setMaxBatteryPowerPercentage()
+	local labelsize=36
+	local valuesize=12
+	local maxtextsize=48
+	padding = ((width - maxtextsize * 2)) / 3
+	repeat
+	gpu.setForeground(0x00FFFF)
+	io.write("Current Maximum Power Percentage:")
+	gpu.setForeground(0xFFFFFF)
+	io.write(tostring(MaxBatteryPowerPercentage))
+	print()
+	gpu.setForeground(0xFFFF00)
+	io.write("Input New Maximum Power Percentage:")
+	local input = tonumber(io.read())
+	until not (input == nil or input > 100 or input < 0)
+	MaxBatteryPowerPercentage = input
+end
+
+local function setMinBatteryPowerPercentage()
+	local labelsize=36
+	local valuesize=12
+	local maxtextsize=48
+	padding = ((width - maxtextsize * 2)) / 3
+	repeat
+	gpu.setForeground(0x00FFFF)
+	io.write("Current Minimum Power Percentage:")
+	gpu.setForeground(0xFFFFFF)
+	io.write(tostring(MinBatteryPowerPercentage))
+	print()
+	gpu.setForeground(0xFFFF00)
+	io.write("Input New Minimum Power Percentage:")
+	local input = tonumber(io.read())
+	until not (input == nil or input > 100 or input < 0)
+	MinBatteryPowerPercentage = input
 end
 
 local function PrintTestResult(TestText, ResultText, Pass)
@@ -302,7 +347,8 @@ local function Alarmtest()
 	testtext = "Checking Alarm audibility........................ "
 	local response = ""
 	repeat
-		io.write("User Query: Is Alarm Audible? (Y/N)")
+		gpu.setForeground(0x00FFFF)
+		io.write("User Query: Is Alarm Audible? (Y/N) ")
 		response = io.read()
 	until response == "Y" or response == "y" or response == "N" or response == "n"
 	if response == "Y" or response == "y" then
@@ -370,7 +416,48 @@ local function DisplayMainMenu()
 end
 
 local function DisplayAutomationParameterMenu()
-
+	os.execute('clear')
+	--get the width of the screen
+	local width, height = gpu.getResolution()
+	
+	--write title
+	local padding = width / 2 + 14
+	gpu.setForeground(0xFF00FF)
+	print(text.padLeft("AUTOMATIC CONTROL PARAMETERS", padding))
+	
+	local labelsize=36
+	local valuesize=12
+	local maxtextsize=48
+	padding = ((width - maxtextsize * 2)) / 3
+	io.write(text.padLeft("", padding))
+	WriteMenuItem(1, "Change Maximum Reactor Heat Percentage", maxtextsize+padding)
+	gpu.setForeground(0x00FFFF)
+	io.write(text.padRight("Current Maximum Heat Percentage:", labelsize))
+	gpu.setForeground(0xFFFFFF)
+	io.write(text.padRight(tostring(MaxReactorHeatPercentage), valuesize))
+	print()
+	io.write(text.padLeft("", padding))
+	WriteMenuItem(2, "Change Maximum Battery Power Percentage", maxtextsize+padding)
+	gpu.setForeground(0x00FFFF)
+	io.write(text.padRight("Current Maximum Power Percentage:", labelsize))
+	gpu.setForeground(0xFFFFFF)
+	io.write(text.padRight(tostring(MaxBatteryPowerPercentage), valuesize))
+	print()
+	io.write(text.padLeft("", padding))
+	WriteMenuItem(3, "Change Minimum Bettery Power Percentage", maxtextsize+padding)
+	gpu.setForeground(0x00FFFF)
+	io.write(text.padRight("Current Minimum Power Percentage:", labelsize))
+	gpu.setForeground(0xFFFFFF)
+	io.write(text.padRight(tostring(MinBatteryPowerPercentage), valuesize))
+	print()
+	io.write(text.padLeft("", padding))
+	WriteMenuItem(4, "Return to Main Menu", maxtextsize+padding)
+	print()
+	
+	print()
+	io.write("Selection: ")
+	local input = io.read()
+	return input
 end
 
 local function DisplayData()
@@ -391,18 +478,40 @@ local function DisplayData()
 	io.write(text.padLeft("", padding))
 	gpu.setForeground(0x00FFFF)
 	io.write(text.padRight("Reactor Powered:", labelsize))
-	gpu.setForeground(0x7F7F7F)
-	io.write(text.padRight("Not Implemented", valuesize+padding))
+	if getReactorStatus() then
+		gpu.setForeground(0xA5FF00)
+	else
+		gpu.setForeground(0x7F7F7F)
+	end
+	io.write(text.padRight(getReactorStatus() and "On-line" or "Off-line", valuesize+padding))
+	gpu.setForeground(0x00FFFF)
+	io.write(text.padRight("Reactor Power Generation:", labelsize))
+	if getReactorStatus() then
+		gpu.setForeground(0x00FF00)
+	else
+		gpu.setForeground(0x7F7F7F)
+	end
+	io.write(text.padRight(tostring(getPowerGeneration()) .. " EU/t", valuesize))
 	print()
 	io.write(text.padLeft("", padding))
 	gpu.setForeground(0x00FFFF)
 	io.write(text.padRight("Reactor Heat Value:", labelsize))
-	gpu.setForeground(0x7F7F7F)
-	io.write(text.padRight("Not Implemented", valuesize+padding))
+	local reactorcolor = 0xFFFFFF
+	if getReactorHeatPercentage() > 75 then
+		reactorcolor = 0xFF0000
+	elseif getBatteryPowerPercentage() > 50 then
+		reactorcolor = 0xFFA500
+	elseif getBatteryPowerPercentage() > 25 then
+		reactorcolor = 0xFFFF00
+	else
+		reactorcolor = 0x00FF00
+	end
+	gpu.setForeground(reactorcolor)
+	io.write(text.padRight(tostring(getReactorHeatValue()), valuesize+padding))
 	gpu.setForeground(0x00FFFF)
 	io.write(text.padRight("Reactor Heat Percentage:", labelsize))
-	gpu.setForeground(0x7F7F7F)
-	io.write(text.padRight("Not Implemented", valuesize))
+	gpu.setForeground(reactorcolor)
+	io.write(text.padRight(tostring(getReactorHeatPercentage() .. "%"), valuesize))
 	print()
 	print()
 	io.write(text.padLeft("", padding))
@@ -421,7 +530,7 @@ local function DisplayData()
 	gpu.setForeground(0x00FFFF)
 	io.write(text.padRight("Battery Power Percentage:", labelsize))
 	gpu.setForeground(batterycolor)
-	io.write(text.padRight(tostring(getBatteryPowerPercentage()), valuesize))
+	io.write(text.padRight(tostring(getBatteryPowerPercentage() .. "%"), valuesize))
 	print()
 	print()
 	io.write(text.padLeft("", padding))
@@ -490,7 +599,16 @@ os.execute('clear')
 if response == "1" then
 print("Function Not Yet Implemented")
 elseif response == "2" then
-print("Function Not Yet Implemented")
+	subresponse = DisplayAutomationParameterMenu()
+	os.execute('clear')
+	if subresponse == "1" then
+		setMaxReactorHeatPercentage()
+	elseif subresponse == "2" then
+		setMaxBatteryPowerPercentage()
+	elseif subresponse == "3" then
+		setMinBatteryPowerPercentage()
+	--4 is return to main menu doing nothing, so no extra code is necessary
+	end
 elseif response == "3" then
 	DisplayData()
 elseif response == "4" then
