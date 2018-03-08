@@ -1,35 +1,37 @@
---FUNCTIONS TO WRITE
-
---Core Display Functions
---MonitorData (constantly call DisplayData)
-
---Control Functions
---StartAutomation
-
---SIGNALS
---Redstone1 -> addr 606
---North - Reactor On/Off
---East - SCRAM status and reset command (high = ready, low = triggered) (pulse high reset)
---South - SCRAM activate
---West - Alarm activate
-
---Redstone2 -> addr 8d6
---East - Alarm status and reset command (high = ready/inactive, low = triggered) (pulse high reset)
-
 local component = require("component")
 local sides = require("sides")
 local text = require("text")
 
 local gpu = component.gpu
 --Server Addresses
-local red1 = component.proxy(component.get("606"))
-local red2 = component.proxy(component.get("8d6"))
-local battery = component.proxy(component.get("4bf"))	--temporary for MFE
-local reactor = component.proxy(component.get("433"))
+local red1 = component.proxy(component.get("a3c"))
+local red2 = component.proxy(component.get("56e"))
+local battery = component.proxy(component.get("95f"))	--temporary for MFE
+local reactor = component.proxy(component.get("55d"))
 
-local MaxReactorHeatPercentage = 90
+--Signal Locations
+--SCRAM activate
+local SCRAMActComp = red1
+local SCRAMActSide = sides.right
+--SCRAM status and reset command (high = ready, low = triggered) (pulse high reset)
+local SCRAMResComp = red2
+local SCRAMResSide = sides.east
+--Alarm activate
+local ALARMActComp = red2
+local ALARMActSide = sides.north
+--Alarm status and reset command (high = ready/inactive, low = triggered) (pulse high reset)
+local ALARMResComp = red2
+local ALARMResSide = sides.west
+--Reactor On/Off
+local ReactorCommandComp = red2
+local ReactorCommandSide = sides.south
+
+--ITEMS BELOW HERE SHOULD NOT NEED TO BE CHANGED FROM REACTOR TO REACTOR
+
+local MaxReactorHeatPercentage = 75
 local MaxBatteryPowerPercentage = 99
 local MinBatteryPowerPercentage = 5
+local StopAutomaticControl = true
 
 local function WriteMenuItem(itemnumber, itemtext, totalpadding)
 	gpu.setForeground(0x00FFFF)
@@ -44,19 +46,19 @@ end
 
 --Returns TRUE if set (triggered), Returns False if not set (ready) (power on allowed)
 local function getSCRAMStatus()
-	return red1.getInput(sides.east) == 0
+	return SCRAMResComp.getInput(SCRAMResSide) == 0
 end
 
 local function SCRAMset()
-	red1.setOutput(sides.south, 15)
+	SCRAMActComp.setOutput(SCRAMActSide, 15)
 	os.sleep(1)
-	red1.setOutput(sides.south, 0)	
+	SCRAMActComp.setOutput(SCRAMActSide, 0)	
 end
 
 local function SCRAMreset()
-	red1.setOutput(sides.east, 15)
+	SCRAMResComp.setOutput(SCRAMResSide, 15)
 	os.sleep(1)
-	red1.setOutput(sides.east, 0)
+	SCRAMResComp.setOutput(SCRAMResSide, 0)
 	if getSCRAMStatus() then 
 	gpu.setForeground(0xFF00FF)
 	print("SCRAM Reset Failure: Safety microcontroller overriding reset. Check reactor status.")
@@ -66,19 +68,19 @@ end
 
 --Returns TRUE if set (alarm on), Returns False if not set (alarm off)
 local function getAlarmStatus()
-	return red2.getInput(sides.east) == 0
+	return ALARMResComp.getInput(ALARMResSide) == 0
 end
 
 local function Alarmset()
-	red1.setOutput(sides.west, 15)
+	ALARMActComp.setOutput(ALARMActSide, 15)
 	os.sleep(1)
-	red1.setOutput(sides.west, 0)
+	ALARMActComp.setOutput(ALARMActSide, 0)
 end
 
 local function Alarmreset()
-	red2.setOutput(sides.east, 15)
+	ALARMResComp.setOutput(ALARMResSide, 15)
 	os.sleep(1)
-	red2.setOutput(sides.east, 0)
+	ALARMResComp.setOutput(ALARMResSide, 0)
 	if getAlarmStatus() then 
 	print("Alarm Reset Failure: Safety microcontroller overriding reset. Check reactor status")
 	end
@@ -94,11 +96,11 @@ local function getBatteryPowerPercentage()
 end
 
 local function StartReactor()
-	red1.setOutput(sides.north, 15)
+	ReactorCommandComp.setOutput(ReactorCommandSide, 15)
 end
 
 local function StopReactor()
-	red1.setOutput(sides.north, 0)
+	ReactorCommandComp.setOutput(ReactorCommandSide, 0)
 end
 
 local function getReactorStatus()
@@ -693,19 +695,41 @@ local function DisplayMainMenu()
 	print(text.padLeft("REACTOR CONTROL PROGRAM MAIN MENU", padding))
 	print()
 	
-	maxtextsize = 36
+	if width > 80 then
+		maxtextsize = 36
+	else
+		maxtextsize = 24
+	end
 	padding = (width - (maxtextsize * 3)) / 4
 	--write first line (3 entries)
 	io.write(text.padLeft("", padding))
-	WriteMenuItem(1, "Automated Control", maxtextsize+padding)
+	local autostate
+	if StopAutomaticControl then
+		autostate = "Start"
+	else
+		autostate = "Stop"
+	end
+	if width > 80 then
+		WriteMenuItem(1, autostate .. " Automated Control", maxtextsize+padding)
+	else
+		WriteMenuItem(1, autostate .. " Auto Ctrl", maxtextsize+padding)
+	end
 	WriteMenuItem(4, "Print Plant Status", maxtextsize+padding)
 	WriteMenuItem(7, "Emergency SCRAM", maxtextsize)
 	print()
 	
 	io.write(text.padLeft("", padding))
 	WriteMenuItem(2, "Start Reactor", maxtextsize+padding)
-	WriteMenuItem(5, "Set Automated Control Parameters", maxtextsize+padding)
-	WriteMenuItem(8, "Reset Emergency SCRAM", maxtextsize)
+	if width > 80 then
+		WriteMenuItem(5, "Set Automated Control Parameters", maxtextsize+padding)
+	else
+		WriteMenuItem(5, "Set Auto Ctrl Params", maxtextsize+padding)
+	end
+	if width > 80 then
+		WriteMenuItem(8, "Reset Emergency SCRAM", maxtextsize)
+	else
+		WriteMenuItem(8, "Reset SCRAM", maxtextsize)
+	end
 	print()
 	
 	io.write(text.padLeft("", padding))
@@ -742,6 +766,7 @@ local function DisplayAutomationParameterMenu()
 	io.write(text.padLeft("", padding))
 	WriteMenuItem(1, "Change Maximum Reactor Heat Percentage", maxtextsize+padding)
 	gpu.setForeground(0x00FFFF)
+	if width <= 80 then print() end
 	io.write(text.padRight("Current Maximum Heat Percentage:", labelsize))
 	gpu.setForeground(0xFFFFFF)
 	io.write(text.padRight(tostring(MaxReactorHeatPercentage), valuesize))
@@ -749,13 +774,15 @@ local function DisplayAutomationParameterMenu()
 	io.write(text.padLeft("", padding))
 	WriteMenuItem(2, "Change Maximum Battery Power Percentage", maxtextsize+padding)
 	gpu.setForeground(0x00FFFF)
+	if width <= 80 then print() end
 	io.write(text.padRight("Current Maximum Power Percentage:", labelsize))
 	gpu.setForeground(0xFFFFFF)
 	io.write(text.padRight(tostring(MaxBatteryPowerPercentage), valuesize))
 	print()
 	io.write(text.padLeft("", padding))
-	WriteMenuItem(3, "Change Minimum Bettery Power Percentage", maxtextsize+padding)
+	WriteMenuItem(3, "Change Minimum Battery Power Percentage", maxtextsize+padding)
 	gpu.setForeground(0x00FFFF)
+	if width <= 80 then print() end
 	io.write(text.padRight("Current Minimum Power Percentage:", labelsize))
 	gpu.setForeground(0xFFFFFF)
 	io.write(text.padRight(tostring(MinBatteryPowerPercentage), valuesize))
@@ -821,7 +848,7 @@ local function DisplayData()
 	gpu.setForeground(0x00FFFF)
 	io.write(text.padRight("Reactor Heat Percentage:", labelsize))
 	gpu.setForeground(reactorcolor)
-	io.write(text.padRight(tostring(getReactorHeatPercentage() .. "%"), valuesize))
+	io.write(text.padRight(string.format("%.1f", getReactorHeatPercentage()) .. "%", valuesize))
 	print()
 	print()
 	io.write(text.padLeft("", padding))
@@ -840,7 +867,7 @@ local function DisplayData()
 	gpu.setForeground(0x00FFFF)
 	io.write(text.padRight("Battery Power Percentage:", labelsize))
 	gpu.setForeground(batterycolor)
-	io.write(text.padRight(tostring(getBatteryPowerPercentage() .. "%"), valuesize))
+	io.write(text.padRight(string.format("%.1f", getBatteryPowerPercentage()) .. "%", valuesize))
 	print()
 	print()
 	io.write(text.padLeft("", padding))
@@ -897,14 +924,48 @@ local function DisplayTestMenu()
 	return input
 end
 
+local function AutomatedControl()
+	local response = false
+	repeat
+		response = checkForReactorHeatResponse(getReactorHeatPercentage())
+		checkForBatteryPowerResponse(getBatteryPowerPercentage())
+		--get the width of the screen
+		local width, height = gpu.getResolution()
+		local padding = width / 2 + 13
+		gpu.setForeground(0xFF0000)
+		print(text.padLeft("AUTOMATIC CONTROL ENABLED", padding))
+		DisplayData()
+		if getReactorHeatPercentage() <= MaxReactorHeatPercentage * 0.5 then
+			os.sleep(10)
+		elseif getReactorHeatPercentage() <= MaxReactorHeatPercentage * 0.75 then
+			os.sleep(3)
+		else
+			os.sleep(1)
+		end
+	until StopAutomaticControl or response
+	if response then
+		gpu.setForeground(0xFF0000)
+		StopAutomaticControl = true
+		print("EMERGENCY SCRAM TRIGGERED!")
+	end
+end
+
 --MAIN ROUTINE
 local response = 0
 local subresponse = 0
+local co
 repeat
 response = DisplayMainMenu()
 os.execute('clear')
 if response == "1" then
-print("Function Not Yet Implemented")
+	if StopAutomaticControl then
+		StopAutomaticControl = false
+		print("Automated Control Starting")
+		AutomatedControl()
+	else
+		print("Automatic Control Stopping")
+		StopAutomaticControl = true
+	end
 elseif response == "2" then
 	StartReactor()
 elseif response == "3" then
